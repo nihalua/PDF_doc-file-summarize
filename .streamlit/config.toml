@@ -1,0 +1,6 @@
+# Keep everything on this computer.
+[server]
+address = "127.0.0.1"
+
+[browser]
+gatherUsageStats = false

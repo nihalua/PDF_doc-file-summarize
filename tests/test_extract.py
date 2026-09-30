@@ -34,26 +34,23 @@ def make_docx() -> bytes:
     return buf.getvalue()
 
 
-def test_small_pdf_is_sent_natively():
+def test_pdf_pages_are_kept_separately():
     doc = load_document("a.pdf", make_pdf(3))
-    assert doc.is_pdf and len(doc.pdf_batches) == 1 and doc.page_count == 3
+    assert doc.page_count == 3 and len(doc.pages) == 3
+    assert "Hello page 3" in doc.pages[2]
 
 
-def test_large_text_pdf_is_extracted_to_text():
-    doc = load_document("big.pdf", make_pdf(120))
-    assert not doc.is_pdf
-    assert "[Page 120]" in doc.text and "Hello page 1 " in doc.text
-
-
-def test_large_scanned_pdf_is_split(monkeypatch):
+def test_scanned_pdf_is_rejected_with_ocr_hint(monkeypatch):
     from pypdf import PageObject
     monkeypatch.setattr(PageObject, "extract_text", lambda self, *a, **k: "")
-    doc = load_document("scan.pdf", make_pdf(250))
-    assert doc.is_pdf and len(doc.pdf_batches) == 3
+    with pytest.raises(ExtractionError, match="OCR"):
+        load_document("scan.pdf", make_pdf(4))
 
 
 def test_docx_keeps_order_headings_and_tables():
-    text = load_document("s.docx", make_docx()).text
+    doc = load_document("s.docx", make_docx())
+    assert doc.page_count is None
+    text = doc.text
     assert text.index("## Sözleşme Başlığı") < text.index("Tutar | 10.000 TL") < text.index("Son paragraf")
 
 

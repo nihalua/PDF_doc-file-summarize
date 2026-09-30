@@ -1,107 +1,87 @@
-import json
-from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 
-from docsum import summarizer
+from docsum import SummaryError, load_document, summarize, to_markdown
 from docsum.extract import LoadedDocument
-from docsum.render import to_markdown
-from docsum.summarizer import SummaryError, chunk_text, summarize
 
-SUMMARY = {
-    "title": "Kira Sözleşmesi",
-    "document_type": "Sözleşme",
-    "source_language": "Türkçe",
-    "purpose": "Kiracı ile mal sahibi arasındaki kira şartlarını belirlemek.",
-    "executive_summary": "Özet metni.",
-    "key_points": ["Birinci nokta", "İkinci nokta"],
-    "important_details": [{"label": "Kira bedeli", "value": "10.000 TL"}],
-    "action_items": ["Kiracı her ayın 5'ine kadar öder."],
-    "conclusion": "Sonuç.",
-}
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-class FakeStream:
-    def __init__(self, message):
-        self.message = message
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def get_final_message(self):
-        return self.message
+def load(name):
+    return load_document(name, (FIXTURES / name).read_bytes())
 
 
-class FakeClient:
-    def __init__(self, stop_reason="end_turn"):
-        self.calls = []
-        self.stop_reason = stop_reason
-        self.beta = SimpleNamespace(messages=SimpleNamespace(stream=self._stream))
-
-    def _stream(self, **kwargs):
-        self.calls.append(kwargs)
-        fmt = kwargs["output_config"].get("format")
-        text = json.dumps(SUMMARY) if fmt else f"notes {len(self.calls)}"
-        return FakeStream(SimpleNamespace(
-            stop_reason=self.stop_reason,
-            content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=text)],
-        ))
-
-
-def test_single_pass_pdf():
-    client = FakeClient()
-    doc = LoadedDocument("a.pdf", pdf_batches=[b"%PDF-1.4"], page_count=1)
-    s = summarize(doc, language="tr", client=client)
-    assert s.title == "Kira Sözleşmesi"
-    call = client.calls[0]
-    assert len(client.calls) == 1
-    assert call["model"] == "claude-opus-5-5"
-    assert call["fallbacks"] == "default"
-    assert "Turkish" in call["system"]
-    block = call["messages"][0]["content"][0]
-    assert block["source"]["media_type"] == "application/pdf"
-    assert call["output_config"]["format"]["schema"] == summarizer.SUMMARY_SCHEMA
+def test_english_policy():
+    s = summarize(load("remote_work_policy_en.txt"), "detailed")
+    assert s.language == "en"
+    assert s.title == "REMOTE WORK POLICY"
+    assert s.purpose_from_cues
+    assert s.purpose[0].text.startswith("The purpose of this policy")
+    assert any("within 14 days" in p.text for p in s.obligations)
+    assert any("shall not install unapproved software" in p.text for p in s.obligations)
+    values = {(f.kind, f.value) for f in s.facts}
+    assert {("date", "1 March 2027"), ("amount", "£30"), ("percentage", "78%"),
+            ("time_limit", "within 24 hours"), ("email", "hr@northwind.example")} <= values
+    assert "remote work" in s.key_phrases
+    assert [p.text for p in s.outline][1] == "1. Introduction"
 
 
-def test_long_text_uses_map_reduce(monkeypatch):
-    monkeypatch.setattr(summarizer, "SINGLE_PASS_MAX_TOKENS", 100)
-    monkeypatch.setattr(summarizer, "CHUNK_TOKENS", 100)
-    client = FakeClient()
-    text = "\n\n".join(["paragraph " * 20] * 6)
-    steps = []
-    s = summarize(LoadedDocument("t.txt", text=text), client=client, progress=steps.append)
-    assert s.key_points == ["Birinci nokta", "İkinci nokta"]
-    n_sections = len(client.calls) - 1
-    assert n_sections > 1
-    final = client.calls[-1]["messages"][0]["content"][0]["text"]
-    assert f"notes {n_sections}" in final and "notes 1" in final
-    assert any("section 1 of" in m for m in steps)
+def test_turkish_contract():
+    s = summarize(load("kira_sozlesmesi_tr.txt"))
+    assert s.language == "tr"
+    assert s.purpose[0].text.startswith("Bu sözleşmenin amacı")
+    assert any("zorundadır" in p.text for p in s.obligations)
+    values = {(f.kind, f.value) for f in s.facts}
+    assert {("amount", "25.000 TL"), ("amount", "50.000 TL"), ("date", "1 Şubat 2027"),
+            ("percentage", "%25"), ("time_limit", "en geç 30 gün")} <= values
+    # Section headings aren't reported as references.
+    assert not any(f.kind == "reference" and f.value.upper().startswith("MADDE") for f in s.facts)
 
 
-def test_refusal_and_truncation_raise():
-    doc = LoadedDocument("t.txt", text="x")
-    with pytest.raises(SummaryError, match="declined"):
-        summarize(doc, client=FakeClient(stop_reason="refusal"))
-    with pytest.raises(SummaryError, match="cut off"):
-        summarize(doc, client=FakeClient(stop_reason="max_tokens"))
+def test_sections_do_not_repeat_each_other():
+    s = summarize(load("remote_work_policy_en.txt"))
+    purpose = {p.text for p in s.purpose}
+    overview = {p.text for p in s.overview}
+    key_points = {p.text for p in s.key_points}
+    obligations = {p.text for p in s.obligations}
+    assert not (purpose & overview) and not (overview & key_points) and not (key_points & obligations)
 
 
-def test_chunk_text_respects_limit_and_keeps_content():
-    text = "\n\n".join(["a" * 30, "b" * 30, "c" * 250, "d" * 10])
-    chunks = chunk_text(text, 100)
-    assert all(len(c) <= 100 for c in chunks)
-    assert "".join(chunks).replace("\n", "") == text.replace("\n", "")
+def test_detail_level_changes_length():
+    doc = load("remote_work_policy_en.txt")
+    assert len(summarize(doc, "brief").key_points) < len(summarize(doc, "detailed").key_points)
 
 
-def test_schema_matches_model():
-    assert set(summarizer.SUMMARY_SCHEMA["required"]) == set(summarizer.SUMMARY_SCHEMA["properties"])
+def test_markdown_labels_follow_ui_language():
+    s = summarize(load("kira_sozlesmesi_tr.txt"))
+    tr, en = to_markdown(s, "tr"), to_markdown(s, "en")
+    assert "## Belgenin amacı" in tr and "**Belgenin dili:** Türkçe" in tr
+    assert "## Purpose of the document" in en and "**Document language:** Turkish" in en
+    assert "| **25.000 TL** |" in en
 
 
-def test_markdown_headings_follow_language():
-    s = summarizer.DocumentSummary.model_validate(SUMMARY)
-    tr = to_markdown(s, "tr")
-    assert "## Belgenin amacı" in tr and "| Kira bedeli | 10.000 TL |" in tr
-    assert "## Purpose of the document" in to_markdown(s, "en")
+def test_page_numbers_are_cited_for_pdfs():
+    pages = [
+        "The purpose of this report is to review the annual budget of the city council in detail.",
+        "Spending on public transport rose sharply. The council must publish the final figures by 1 June 2027.",
+    ]
+    s = summarize(LoadedDocument("r.pdf", pages, page_count=2))
+    assert s.purpose[0].page == 1
+    assert s.obligations[0].page == 2
+    assert "*(p. 2)*" in to_markdown(s, "en")
+
+
+def test_too_little_text():
+    with pytest.raises(SummaryError):
+        summarize(LoadedDocument("x.txt", ["Hello."]))
+
+
+def test_long_document_is_fast():
+    import time
+    text = (FIXTURES / "remote_work_policy_en.txt").read_text(encoding="utf-8")
+    doc = LoadedDocument("big.txt", [text] * 150)  # ~90k words
+    start = time.perf_counter()
+    s = summarize(doc, "detailed")
+    assert time.perf_counter() - start < 20
+    assert len(s.key_points) == 20

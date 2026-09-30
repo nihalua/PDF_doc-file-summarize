@@ -1,0 +1,39 @@
+REMOTE WORK POLICY
+
+1. Introduction
+
+The purpose of this policy is to set out the conditions under which employees of Northwind Logistics Ltd. may work remotely, and to protect the security of company information while they do so. It applies to all permanent and fixed-term employees in the United Kingdom and Ireland from 1 March 2027. Contractors are covered by a separate agreement.
+
+Remote work has become a permanent part of how the company operates. In the 2026 staff survey, 78% of employees said that flexible working improved their productivity, and absence rates fell by 12 percent in teams that adopted hybrid schedules. At the same time, the survey identified gaps in equipment, data protection and team communication that this policy is designed to address.
+
+2. Eligibility
+
+Employees become eligible for remote work after completing a probation period of 6 months. Roles that require physical presence, such as warehouse operations and vehicle maintenance, are not eligible. Managers decide on eligibility based on the requirements of the role, the employee's performance record and the needs of the team.
+
+An employee who wishes to work remotely must submit a written request to their line manager. The manager shall respond to each request within 14 days and give reasons if the request is refused. Approved arrangements are reviewed every 12 months.
+
+3. Working hours and availability
+
+Remote employees are expected to work the same contracted hours as office-based staff. Core hours are between 10:00 and 15:00, during which employees must be reachable by phone and on the company chat system. Employees must attend the office in person for at least 2 days per week unless their manager has agreed otherwise in writing.
+
+Overtime must be approved in advance by the line manager. Employees are responsible for recording their working time accurately in the HR system.
+
+4. Equipment and expenses
+
+The company will provide a laptop, a monitor and a headset to every approved remote employee. Employees may claim a home office allowance of £30 per month to cover internet and electricity costs. Claims must be submitted through the expenses system no later than the 5th working day of the following month.
+
+Equipment remains the property of the company and must be returned within 10 days of the end of employment. Employees shall not install unapproved software on company devices.
+
+5. Information security
+
+All work must be carried out on company devices connected through the corporate VPN. Confidential documents must not be printed at home or stored on personal devices or personal cloud accounts. Employees must lock their screen whenever they leave their device unattended, including at home.
+
+Any loss of equipment or suspected data breach must be reported to the IT Service Desk at security@northwind.example within 24 hours. Failure to follow these security rules may lead to disciplinary action under the Code of Conduct, Section 7.
+
+6. Health and safety
+
+Employees are required to complete the home workstation self-assessment before starting remote work and once every year after that. The company recommends regular breaks of at least 5 minutes every hour. Managers should hold a one-to-one meeting with each remote team member at least once a month to discuss workload and wellbeing.
+
+7. Review
+
+This policy will be reviewed by the People Team in March 2028. Questions about the policy should be directed to hr@northwind.example. In conclusion, remote work is a benefit that depends on trust, clear communication and careful handling of company information, and the company expects every employee to apply these rules consistently.
