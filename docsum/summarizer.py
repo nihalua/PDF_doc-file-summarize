@@ -172,7 +172,10 @@ def _call(
         ) as stream:
             message = stream.get_final_message()
     except anthropic.AuthenticationError as e:
-        raise SummaryError("Invalid or missing Anthropic API key (ANTHROPIC_API_KEY).") from e
+        raise SummaryError(
+            "The Anthropic API key was rejected. Check the key in the sidebar "
+            "(or the ANTHROPIC_API_KEY environment variable)."
+        ) from e
     except anthropic.RateLimitError as e:
         raise SummaryError("Rate limited by the Anthropic API. Please wait and retry.") from e
     except anthropic.BadRequestError as e:

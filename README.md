@@ -13,7 +13,37 @@ For every document you get:
 The summary is written in the language you choose, whatever language the document is in
 (e.g. an English contract summarized in Turkish, or the other way round).
 
-## Setup
+## Download for Windows (no Python needed)
+
+1. Open the repository's **[Releases](../../releases)** page and download `DocumentSummarizer.exe`
+   from the latest release.
+2. Double-click it. A console window opens (keep it open; closing it stops the app) and the app
+   opens in your browser.
+3. The first time, paste your Anthropic API key (from [console.anthropic.com](https://console.anthropic.com))
+   into **Anthropic API key** in the sidebar and click **Save key**. It is stored only on your computer,
+   in `%APPDATA%\DocumentSummarizer\config.json`.
+
+Notes:
+- Windows SmartScreen may warn that the app is from an unknown publisher, because the exe isn't
+  code-signed. Click **More info → Run anyway**.
+- The first start takes a few seconds while the program unpacks.
+- Legacy `.doc` files need [LibreOffice](https://www.libreoffice.org/) installed; PDF, DOCX and TXT work as is.
+
+### Publishing a new version
+
+The `Build Windows app` GitHub Actions workflow builds and tests the exe on every pull request
+(download it from the run's **Artifacts**). To publish a release, push a version tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To build it yourself on Windows: `pip install -r requirements-dev.txt` then `python build_exe.py`;
+the exe appears in `dist\`.
+
+## Run from source
+
 
 Requires Python 3.10+.
 
@@ -69,9 +99,12 @@ within a few minutes is much cheaper.
 
 ```
 app.py               Streamlit UI (English / Turkish)
+launcher.py          Entry point of the Windows exe (starts the app, opens the browser)
+build_exe.py         PyInstaller build script
 docsum/extract.py    File loading: PDF, DOCX, DOC, TXT
 docsum/summarizer.py Claude calls, prompts, long-document map-reduce
 docsum/render.py     Markdown output with headings in the chosen language
+docsum/settings.py   Saves the API key in the user's profile
 docsum/__main__.py   Command line interface
 tests/               pytest suite (no API key needed; the Claude client is faked)
 ```

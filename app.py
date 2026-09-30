@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
+import anthropic
 import streamlit as st
 
 from docsum import ExtractionError, SummaryError, load_document, summarize, to_markdown
+from docsum import settings
 from docsum.extract import SUPPORTED_EXTENSIONS
 
 UI = {
@@ -21,7 +22,13 @@ UI = {
         "details": {"brief": "Brief", "standard": "Standard", "detailed": "Detailed"},
         "go": "Summarize",
         "download": "Download summary (.md)",
-        "no_key": "Set the ANTHROPIC_API_KEY environment variable before starting the app.",
+        "no_key": "Enter your Anthropic API key in the sidebar to start.",
+        "key_section": "Anthropic API key",
+        "key_input": "API key",
+        "key_help": "Get one at console.anthropic.com. It is saved only on this computer.",
+        "key_save": "Save key",
+        "key_saved": "Key saved on this computer.",
+        "key_forget": "Forget saved key",
         "pages": "pages",
     },
     "tr": {
@@ -34,7 +41,13 @@ UI = {
         "details": {"brief": "Kısa", "standard": "Standart", "detailed": "Ayrıntılı"},
         "go": "Özetle",
         "download": "Özeti indir (.md)",
-        "no_key": "Uygulamayı başlatmadan önce ANTHROPIC_API_KEY ortam değişkenini ayarlayın.",
+        "no_key": "Başlamak için kenar çubuğuna Anthropic API anahtarınızı girin.",
+        "key_section": "Anthropic API anahtarı",
+        "key_input": "API anahtarı",
+        "key_help": "console.anthropic.com adresinden alabilirsiniz. Yalnızca bu bilgisayara kaydedilir.",
+        "key_save": "Anahtarı kaydet",
+        "key_saved": "Anahtar bu bilgisayara kaydedildi.",
+        "key_forget": "Kayıtlı anahtarı sil",
         "pages": "sayfa",
     },
 }
@@ -56,12 +69,23 @@ detail = st.sidebar.select_slider(
 st.title(t["title"])
 st.write(t["intro"])
 
-if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+api_key = settings.load_api_key()
+with st.sidebar.expander(t["key_section"], expanded=not api_key):
+    entered = st.text_input(t["key_input"], type="password", help=t["key_help"])
+    if st.button(t["key_save"]) and entered.strip():
+        settings.save_api_key(entered)
+        api_key = entered.strip()
+        st.success(t["key_saved"])
+    if api_key and st.button(t["key_forget"]):
+        settings.forget_api_key()
+        api_key = settings.load_api_key()
+
+if not api_key:
     st.warning(t["no_key"])
 
 uploaded = st.file_uploader(t["upload"], type=[e.lstrip(".") for e in SUPPORTED_EXTENSIONS])
 
-if uploaded and st.button(t["go"], type="primary"):
+if uploaded and st.button(t["go"], type="primary", disabled=not api_key):
     try:
         doc = load_document(uploaded.name, uploaded.getvalue())
         if doc.page_count:
@@ -69,6 +93,7 @@ if uploaded and st.button(t["go"], type="primary"):
         with st.status("…", expanded=False) as status:
             summary = summarize(
                 doc, language=lang, detail=detail,
+                client=anthropic.Anthropic(api_key=api_key),
                 progress=lambda msg: status.update(label=msg),
             )
             status.update(label="✅", state="complete")
