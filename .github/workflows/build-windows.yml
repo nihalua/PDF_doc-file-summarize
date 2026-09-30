@@ -1,0 +1,63 @@
+name: Build Windows app
+
+on:
+  push:
+    tags: ["v*"]          # tag a version (e.g. v1.0.0) to publish a release
+  pull_request:
+  workflow_dispatch:      # or run it by hand from the Actions tab
+
+permissions:
+  contents: write         # needed to create the release on tag builds
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Build DocumentSummarizer.exe
+        run: python build_exe.py
+
+      - name: Smoke test the exe
+        shell: pwsh
+        run: |
+          $env:DOCSUM_NO_BROWSER = "1"
+          $env:DOCSUM_PORT = "8765"
+          $proc = Start-Process -FilePath dist\DocumentSummarizer.exe -PassThru `
+            -RedirectStandardOutput exe-out.log -RedirectStandardError exe-err.log
+          $ok = $false
+          foreach ($i in 1..90) {
+            Start-Sleep -Seconds 2
+            if ($proc.HasExited) { break }
+            try {
+              $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8765/_stcore/health -TimeoutSec 2
+              if ($r.Content -eq "ok") { $ok = $true; break }
+            } catch {}
+          }
+          Get-Content exe-out.log, exe-err.log -ErrorAction SilentlyContinue
+          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          if (-not $ok) { throw "DocumentSummarizer.exe did not start" }
+          Write-Host "Smoke test passed"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DocumentSummarizer-windows
+          path: dist/DocumentSummarizer.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/DocumentSummarizer.exe --title "Document Summarizer ${{ github.ref_name }}" --generate-notes
