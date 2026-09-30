@@ -1,33 +1,53 @@
 # PDF_doc-file-summarize
 
-Summarize long **PDF, Word (DOCX / DOC) and text** files in **English or Turkish** with Claude.
+Summarize long **PDF, Word (DOCX / DOC) and text** files in **English or Turkish** —
+**completely offline**. Your files are processed on your own computer and never uploaded
+anywhere. No AI service is used.
+
 For every document you get:
 
-- **Purpose** – why the document exists and what it's trying to achieve
-- **Summary** – the substance of the document
-- **Key points** – the most important findings, decisions and terms, most important first
-- **Important details** – dates, deadlines, amounts, parties, reference numbers
-- **Action items & obligations** – what the document requires or recommends, and from whom
-- **Conclusion** – the bottom line
+- **Purpose** – the sentence(s) where the document states what it is for
+  ("The purpose of this policy…", "Bu sözleşmenin amacı…")
+- **Overview** – the few sentences that best represent the whole document
+- **Key points** – the most representative sentences, without repeats, in document order
+- **Obligations & requirements** – sentences with *shall / must / is required to /
+  zorundadır / yükümlüdür / -malıdır…*
+- **Important details** – dates, amounts, percentages, time limits, article/section
+  references and e-mail addresses, each with the sentence it came from
+- **Main topics** and the document's **structure** (headings)
+- Page numbers for PDFs, so you can jump to the source
 
-The summary is written in the language you choose, whatever language the document is in
-(e.g. an English contract summarized in Turkish, or the other way round).
+The app's labels can be shown in English or Turkish. The quoted sentences always stay in the
+document's own language.
+
+## How it works (and its limits)
+
+This is **extractive** summarization: the summary is made of the document's own sentences,
+chosen by classic text statistics (TF-IDF centroid scoring with a diversity step), plus
+English/Turkish cue phrases for purpose and obligations and patterns for dates, amounts and
+so on. That means:
+
+- ✅ Nothing leaves your computer; it works without internet; results are instant, even for
+  hundreds of pages; every sentence shown is really in the document.
+- ⚠️ It does not write new text. It can't rephrase, explain in its own words or translate.
+  If a document never states its purpose, the app shows its best guess and says so.
+- ⚠️ Scanned PDFs (images without a text layer) have no text to read. Run them through OCR
+  first (e.g. Adobe Acrobat "Recognize text" or the free [OCRmyPDF](https://ocrmypdf.readthedocs.io/)).
 
 ## Download for Windows (no Python needed)
 
 1. Open the repository's **[Releases](../../releases)** page and download `DocumentSummarizer.exe`
    from the latest release.
 2. Double-click it. A console window opens (keep it open; closing it stops the app) and the app
-   opens in your browser.
-3. The first time, paste your Anthropic API key (from [console.anthropic.com](https://console.anthropic.com))
-   into **Anthropic API key** in the sidebar and click **Save key**. It is stored only on your computer,
-   in `%APPDATA%\DocumentSummarizer\config.json`.
+   opens in your browser at `http://localhost:…`. The browser is only the app's window: the page is
+   served by the program on your own computer.
 
 Notes:
 - Windows SmartScreen may warn that the app is from an unknown publisher, because the exe isn't
   code-signed. Click **More info → Run anyway**.
 - The first start takes a few seconds while the program unpacks.
-- Legacy `.doc` files need [LibreOffice](https://www.libreoffice.org/) installed; PDF, DOCX and TXT work as is.
+- Legacy `.doc` files need [LibreOffice](https://www.libreoffice.org/) installed (it converts
+  them locally); PDF, DOCX and TXT work as is.
 
 ### Publishing a new version
 
@@ -44,69 +64,37 @@ the exe appears in `dist\`.
 
 ## Run from source
 
-
 Requires Python 3.10+.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...   # Windows: set ANTHROPIC_API_KEY=...
+streamlit run app.py             # web app on http://localhost:8501
 ```
 
-Legacy `.doc` files are converted with [LibreOffice](https://www.libreoffice.org/) (`soffice`),
-so install it if you need `.doc` support. `.docx`, `.pdf` and `.txt` need nothing extra.
-
-## Web app
+Or from the command line:
 
 ```bash
-streamlit run app.py
+python -m docsum report.pdf                         # English labels, to stdout
+python -m docsum sozlesme.docx --ui tr              # Turkish labels
+python -m docsum thesis.pdf --detail detailed -o summary.md
 ```
-
-Pick the summary language (English / Türkçe) and detail level (brief / standard / detailed) in
-the sidebar, upload a file, click **Summarize**. The result can be downloaded as Markdown.
-
-## Command line
-
-```bash
-python -m docsum report.pdf                      # English summary to stdout
-python -m docsum sozlesme.docx --lang tr         # Turkish summary
-python -m docsum thesis.pdf --detail detailed --effort high -o summary.md
-```
-
-`--effort` controls how hard the model thinks (`low` … `max`); `medium` is the default and a good
-balance of quality, speed and cost for summaries.
-
-## How it handles long documents
-
-| Input | What happens |
-|---|---|
-| PDF up to 100 pages | Sent to Claude as a PDF, so tables, charts and scanned pages are read too |
-| Longer PDF with a text layer | Text is extracted per page (much cheaper than page images) |
-| Longer scanned PDF | Split into 100-page PDF batches |
-| DOCX / DOC | Text extracted with headings, lists and tables kept in document order |
-| TXT / MD | Decoded as UTF-8, falling back to Turkish Windows encodings (cp1254 / ISO-8859-9) |
-
-Anything that fits in one request (Claude's context is 1M tokens — several hundred pages of text)
-is summarized in a single pass. Bigger documents are split into sections; each section is
-condensed into notes, and the final summary is written from all the notes.
-
-The model is `claude-opus-5-5` with structured JSON output, so every summary has the same
-sections. The document is prompt-cached, so re-summarizing the same file in the other language
-within a few minutes is much cheaper.
 
 ## Project layout
 
 ```
-app.py               Streamlit UI (English / Turkish)
-launcher.py          Entry point of the Windows exe (starts the app, opens the browser)
-build_exe.py         PyInstaller build script
-docsum/extract.py    File loading: PDF, DOCX, DOC, TXT
-docsum/summarizer.py Claude calls, prompts, long-document map-reduce
-docsum/render.py     Markdown output with headings in the chosen language
-docsum/settings.py   Saves the API key in the user's profile
-docsum/__main__.py   Command line interface
-tests/               pytest suite (no API key needed; the Claude client is faked)
+app.py                Streamlit UI (English / Turkish)
+launcher.py           Entry point of the Windows exe (starts the app, opens the browser)
+build_exe.py          PyInstaller build script
+docsum/extract.py     File loading: PDF, DOCX, DOC, TXT
+docsum/textproc.py    Language detection, sentence splitting, stemming (EN/TR)
+docsum/summarizer.py  Sentence scoring and selection, purpose, obligations
+docsum/details.py     Patterns for dates, amounts, percentages, time limits, references
+docsum/stopwords.py   English and Turkish stopword lists
+docsum/render.py      Markdown output with labels in the chosen language
+docsum/__main__.py    Command line interface
+tests/                pytest suite, including a test that fails on any network access
 ```
 
 ## Tests
